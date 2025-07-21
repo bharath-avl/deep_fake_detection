@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Detector | HTML & JS</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom Styles */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Animation for result display */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out forwards;
+        }
+        /* Hide the default file input */
+        #file-upload-input {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-10">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <i data-lucide="shield" class="h-8 w-8 text-cyan-400"></i>
+                    <h1 class="text-xl font-bold tracking-wider">Deepfake Detector</h1>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex items-center justify-center">
+        <div class="w-full max-w-2xl text-center">
+            <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-4">
+                Verify Your Media
+            </h2>
+            <p class="text-gray-400 text-lg mb-8 max-w-xl mx-auto">
+                Upload a video or image to analyze it for potential deepfake manipulation using our advanced AI model.
+            </p>
+
+            <!-- Uploader -->
+            <div id="uploader-container" class="bg-gray-800 border-2 border-dashed border-gray-600 rounded-xl p-8 transition-all duration-300 ease-in-out hover:border-cyan-400 hover:bg-gray-800/50">
+                
+                <!-- Initial Uploader View -->
+                <div id="dropzone">
+                    <label for="file-upload-input" class="cursor-pointer flex flex-col items-center justify-center space-y-4">
+                        <i data-lucide="upload" class="h-12 w-12 text-gray-500"></i>
+                        <p id="dropzone-text" class="text-lg font-semibold">Drag & drop a file here, or click to select</p>
+                        <p class="text-sm text-gray-500">Supports: MP4, MOV, AVI, JPG, PNG</p>
+                    </label>
+                    <input id="file-upload-input" type="file" accept="video/*,image/*">
+                </div>
+
+                <!-- File Preview & Analysis View (Initially Hidden) -->
+                <div id="analysis-view" class="hidden">
+                    <div class="flex flex-col items-center space-y-6">
+                        <div class="flex items-center space-x-3 bg-gray-700 p-3 rounded-lg w-full max-w-md">
+                            <i data-lucide="file" class="h-6 w-6 text-gray-400 flex-shrink-0"></i>
+                            <span id="file-name" class="truncate font-mono text-sm"></span>
+                            <span id="file-size" class="text-gray-500 text-xs ml-auto flex-shrink-0"></span>
+                        </div>
+                        
+                        <div id="status-indicator" class="h-10 text-lg font-semibold"></div>
+                        
+                        <div id="result-display" class="w-full max-w-md"></div>
+
+                        <button id="reset-button" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300">
+                            Analyze Another File
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 border-t border-gray-800 mt-auto">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-gray-500">
+            <p>&copy; 2024 Deepfake Detector. For educational purposes only.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- DOM Element References ---
+        const dropzone = document.getElementById('dropzone');
+        const dropzoneText = document.getElementById('dropzone-text');
+        const fileInput = document.getElementById('file-upload-input');
+        const analysisView = document.getElementById('analysis-view');
+        const uploaderContainer = document.getElementById('uploader-container');
+        
+        const fileNameEl = document.getElementById('file-name');
+        const fileSizeEl = document.getElementById('file-size');
+        const statusIndicator = document.getElementById('status-indicator');
+        const resultDisplay = document.getElementById('result-display');
+        const resetButton = document.getElementById('reset-button');
+
+        // --- Backend API URL ---
+        // *** IMPORTANT: Make sure this port matches the port your Python server is running on! ***
+        const API_ENDPOINT = 'http://127.0.0.1:5050/analyze';
+
+        // --- Drag and Drop Event Handlers ---
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploaderContainer.classList.add('border-cyan-400', 'bg-gray-800/50');
+            dropzoneText.textContent = 'Drop the file here...';
+            dropzoneText.classList.add('text-cyan-400');
+        });
+
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploaderContainer.classList.remove('border-cyan-400', 'bg-gray-800/50');
+            dropzoneText.textContent = 'Drag & drop a file here, or click to select';
+            dropzoneText.classList.remove('text-cyan-400');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploaderContainer.classList.remove('border-cyan-400', 'bg-gray-800/50');
+            dropzoneText.textContent = 'Drag & drop a file here, or click to select';
+            dropzoneText.classList.remove('text-cyan-400');
+            
+            if (e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                handleFile(file);
+            }
+        });
+
+        // --- File Input Change Handler ---
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                handleFile(file);
+            }
+        });
+        
+        // --- Reset Button Handler ---
+        resetButton.addEventListener('click', () => {
+            dropzone.classList.remove('hidden');
+            analysisView.classList.add('hidden');
+            resetButton.classList.add('hidden');
+            resultDisplay.innerHTML = '';
+            statusIndicator.innerHTML = '';
+            fileInput.value = ''; // Reset file input
+        });
+
+        // --- Main File Handling and Analysis Logic ---
+        async function handleFile(file) {
+            // Switch views
+            dropzone.classList.add('hidden');
+            analysisView.classList.remove('hidden');
+
+            // Display file info
+            fileNameEl.textContent = file.name;
+            fileSizeEl.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+            
+            // Start analysis flow
+            setStatus('uploading', 'Uploading...');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                setStatus('analyzing', 'Analyzing...');
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                // Add a small delay to make the "Analyzing" step visible
+                setTimeout(() => {
+                    setStatus('success', 'Analysis Complete');
+                    renderResult(result);
+                    resetButton.classList.remove('hidden');
+                }, 1000);
+
+
+            } catch (error) {
+                console.error("Analysis Error:", error);
+                setStatus('error', 'Analysis Failed');
+                renderError(error.message);
+                resetButton.classList.remove('hidden');
+            }
+        }
+
+        function setStatus(status, text) {
+            let icon = '';
+            let colorClass = '';
+            let animationClass = '';
+
+            switch(status) {
+                case 'uploading':
+                    icon = 'loader';
+                    colorClass = 'text-yellow-400';
+                    animationClass = 'animate-spin';
+                    break;
+                case 'analyzing':
+                    icon = 'shield';
+                    colorClass = 'text-cyan-400';
+                    animationClass = 'animate-pulse';
+                    break;
+                case 'success':
+                    icon = 'check-circle';
+                    colorClass = 'text-green-400';
+                    break;
+                case 'error':
+                    icon = 'alert-circle';
+                    colorClass = 'text-red-400';
+                    break;
+            }
+            
+            statusIndicator.innerHTML = `
+                <div class="flex items-center space-x-2 ${colorClass}">
+                    <i data-lucide="${icon}" class="h-5 w-5 ${animationClass}"></i>
+                    <span>${text}</span>
+                </div>
+            `;
+            lucide.createIcons(); // Re-render icons
+        }
+
+        function renderResult(result) {
+            const isFake = result.prediction === 'Deepfake Detected';
+            const confidencePercent = (result.confidence * 100).toFixed(1);
+            const barColor = isFake ? 'bg-red-500' : 'bg-green-500';
+            const textColor = isFake ? 'text-red-400' : 'text-green-400';
+            const explanation = isFake
+                ? "Our model has identified characteristics commonly associated with AI-generated media."
+                : "Our model did not find significant evidence of digital manipulation.";
+
+            const resultHTML = `
+                <div class="bg-gray-800/50 rounded-lg p-6 animate-fade-in">
+                    <h3 class="text-2xl font-bold mb-4 ${textColor}">
+                        Result: ${result.prediction}
+                    </h3>
+                    <div class="w-full bg-gray-700 rounded-full h-4 mb-2">
+                        <div class="${barColor} h-4 rounded-full" style="width: ${confidencePercent}%"></div>
+                    </div>
+                    <p class="text-right font-mono text-sm text-gray-400">
+                        ${confidencePercent}% Confidence
+                    </p>
+                    <p class="text-sm text-gray-500 mt-4 text-left">
+                        ${explanation}
+                    </p>
+                </div>
+            `;
+            resultDisplay.innerHTML = resultHTML;
+        }
+
+        function renderError(errorMessage) {
+            const errorHTML = `
+                <div class="bg-red-900/50 border border-red-700 rounded-lg p-4 animate-fade-in text-red-300">
+                    <p class="font-bold">An error occurred</p>
+                    <p class="text-sm">${errorMessage}</p>
+                </div>
+            `;
+            resultDisplay.innerHTML = errorHTML;
+        }
+
+        // --- Initial Icon Rendering ---
+        lucide.createIcons();
+    </script>
+</body>
+</html>
